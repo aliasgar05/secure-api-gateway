@@ -9,7 +9,9 @@ import {
     ResponsiveContainer
 } from "recharts";
 
-const API_URL = "http://localhost:3000";
+const API_URL = (
+    import.meta.env.VITE_API_URL || "http://localhost:3000"
+).replace(/\/$/, "");
 
 function LoginPage({ onLogin }) {
     const [username, setUsername] = useState("");
@@ -164,11 +166,6 @@ function App() {
     });
 
     const token = localStorage.getItem("adminToken");
-
-    const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-    };
 
     async function apiRequest(endpoint, options = {}) {
         const currentToken = localStorage.getItem("adminToken");
@@ -806,15 +803,7 @@ function DashboardPage({
                                         fontSize: 11
                                     }}
                                     tickFormatter={(value) =>
-                                        new Date(
-                                            value
-                                        ).toLocaleTimeString(
-                                            [],
-                                            {
-                                                hour: "2-digit",
-                                                minute: "2-digit"
-                                            }
-                                        )
+                                        value
                                     }
                                 />
 
@@ -829,9 +818,7 @@ function DashboardPage({
 
                                 <Tooltip
                                     labelFormatter={(value) =>
-                                        new Date(
-                                            value
-                                        ).toLocaleString()
+                                        `Time: ${value}`
                                     }
                                     contentStyle={{
                                         backgroundColor:

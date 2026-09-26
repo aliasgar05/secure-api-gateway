@@ -8,20 +8,39 @@ const { body, validationResult } = require("express-validator");
 const pool = require("./db");
 
 const app = express();
+
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
 
 const THREAT_THRESHOLD = 3;
 const THREAT_WINDOW_MINUTES = 10;
 const AUTO_BLOCK_MINUTES = 10;
 
+app.set("trust proxy", 1);
+
 app.use(express.json({ limit: "1mb" }));
+
+const allowedOrigins = FRONTEND_URL
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
 
 app.use(
     cors({
-        origin: "http://localhost:5173",
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(
+                new Error("CORS origin not allowed")
+            );
+        },
         methods: ["GET", "POST", "DELETE", "PUT", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"]
+        allowedHeaders: ["Content-Type", "Authorization"],
+        credentials: true
     })
 );
 
@@ -245,8 +264,28 @@ const apiLimiter = rateLimit({
 
 app.get("/", (req, res) => {
     res.json({
-        message: "Secure API Gateway is running"
+        message: "Secure API Gateway is running",
+        status: "healthy",
+        environment: process.env.NODE_ENV || "development"
     });
+});
+
+app.get("/health", async (req, res) => {
+    try {
+        await pool.query("SELECT 1");
+
+        res.json({
+            status: "healthy",
+            gateway: "online",
+            database: "connected"
+        });
+    } catch (error) {
+        res.status(503).json({
+            status: "unhealthy",
+            gateway: "online",
+            database: "disconnected"
+        });
+    }
 });
 
 app.post("/auth/login", async (req, res) => {
@@ -502,7 +541,7 @@ async function threatDetection(req, res, next) {
     }
 
     next();
-}
+};
 
 app.get(
     "/api/users",
@@ -513,7 +552,7 @@ app.get(
     async (req, res) => {
         try {
             const response = await fetch(
-                "http://localhost:4000/api/users"
+                `${BACKEND_URL}/api/users`
             );
 
             const data = await response.json();
@@ -546,7 +585,7 @@ app.get(
     async (req, res) => {
         try {
             const response = await fetch(
-                "http://localhost:4000/api/data"
+                `${BACKEND_URL}/api/data`
             );
 
             const data = await response.json();
@@ -599,7 +638,7 @@ app.post(
     async (req, res) => {
         try {
             const response = await fetch(
-                "http://localhost:4000/api/data",
+                `${BACKEND_URL}/api/data`,
                 {
                     method: "POST",
                     headers: {
@@ -1106,8 +1145,6 @@ app.use((err, req, res, next) => {
         error: "Internal server error"
     });
 });
-
-const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`API Gateway running on port ${PORT}`);
